@@ -41,8 +41,8 @@ export function Sidebar() {
             <Headphones className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">AudioKnowledge</h1>
-            <p className="text-xs text-gray-500">Personal Audio System</p>
+            <h1 className="text-xl font-bold text-gray-900">Luna</h1>
+            <p className="text-xs text-gray-500">Audio Transcription</p>
           </div>
         </div>
       </div>

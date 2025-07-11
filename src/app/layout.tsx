@@ -6,7 +6,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Personal Audio Knowledge System",
+  title: "Luna",
   description: "Transform your audio into searchable knowledge",
 };
 

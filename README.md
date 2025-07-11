@@ -1,4 +1,4 @@
-# Audio Transcription App
+# Luna
 
 A modern Next.js application that transforms audio files and live recordings into searchable markdown text using Google Gemini AI. Perfect for transcribing meetings, lectures, interviews, and more with built-in RAG (Retrieval-Augmented Generation) functionality.
 
@@ -33,7 +33,7 @@ A modern Next.js application that transforms audio files and live recordings int
 
    ```bash
    git clone <repository-url>
-   cd audio-transcription
+   cd luna
    ```
 
 2. **Set up environment variables**
@@ -87,7 +87,7 @@ If you prefer to run without Docker:
 
    ```env
    # Database
-   DATABASE_URL="postgresql://username:password@localhost:5432/audio_transcription?schema=public"
+   DATABASE_URL="postgresql://username:password@localhost:5432/luna?schema=public"
 
    # Google Gemini API
    GOOGLE_API_KEY="your_google_api_key_here"
@@ -268,7 +268,7 @@ pnpm start
 docker compose logs -f app
 
 # Access database
-docker exec -it audio-transcription-db psql -U postgres -d audio_transcription
+docker exec -it luna-db psql -U postgres -d luna
 ```
 
 ### Development
@@ -300,7 +300,7 @@ docker compose down -v
 docker compose build --no-cache
 
 # View database with Prisma Studio
-docker exec -it audio-transcription-app npx prisma studio
+docker exec -it luna-app npx prisma studio
 ```
 
 ## Deployment

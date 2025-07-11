@@ -2,10 +2,10 @@ services:
   # PostgreSQL Database with pgvector
   postgres:
     image: pgvector/pgvector:pg15
-    container_name: audio-transcription-db
+    container_name: luna-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: audio_transcription
+      POSTGRES_DB: luna
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
@@ -14,7 +14,7 @@ services:
     ports:
       - "5432:5432"
     networks:
-      - audio-network
+      - luna-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -26,14 +26,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: audio-transcription-app
+    container_name: luna-app
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/audio_transcription?schema=public
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/luna?schema=public
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - UPLOAD_DIR=/app/uploads
       - MAX_FILE_SIZE=10485760
@@ -43,7 +43,7 @@ services:
     ports:
       - "3000:3000"
     networks:
-      - audio-network
+      - luna-network
     command: >
       sh -c "
         echo 'Waiting for database...' &&
@@ -63,14 +63,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: audio-transcription-dev
+    container_name: luna-dev
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/audio_transcription?schema=public
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/luna?schema=public
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - UPLOAD_DIR=/app/uploads
       - MAX_FILE_SIZE=10485760
@@ -81,7 +81,7 @@ services:
     ports:
       - "3001:3000"
     networks:
-      - audio-network
+      - luna-network
     command: >
       sh -c "
         echo 'Waiting for database...' &&
@@ -98,5 +98,5 @@ volumes:
   postgres_data:
 
 networks:
-  audio-network:
+  luna-network:
     driver: bridge
