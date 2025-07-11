@@ -1,0 +1,155 @@
+// Enhanced Prisma schema with pgvector for semantic search
+// This extends your existing schema with vector capabilities
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Vector Extensions
+model VectorEmbedding {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Source reference
+  sourceId    String   // Reference to AudioTranscription, KnowledgeEntity, etc.
+  sourceType  EmbeddingSourceType
+  
+  // Vector data
+  embedding   Unsupported("vector(1536)")  // 1536 dimensions for text-embedding-004
+  
+  // Metadata
+  text        String   // The text that was embedded
+  tokens      Int?     // Number of tokens used
+  model       String   @default("text-embedding-004")
+  
+  // Similarity search optimization
+  @@index([sourceType])
+  @@index([createdAt])
+  @@map("vector_embeddings")
+}
+
+// Knowledge Graph with Vector Search
+model KnowledgeVector {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Core data
+  entityId    String   // Reference to KnowledgeEntity
+  title       String   // Entity title for search
+  description String?  // Entity description
+  
+  // Vector embeddings
+  titleEmbedding       Unsupported("vector(1536)")
+  descriptionEmbedding Unsupported("vector(1536)")?
+  
+  // Metadata for search
+  entityType  String   // Type of entity (person, place, event, etc.)
+  confidence  Float?   // AI confidence score
+  isVerified  Boolean  @default(false)
+  
+  // Relations
+  entity      KnowledgeEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  
+  @@index([entityType])
+  @@index([isVerified])
+  @@map("knowledge_vectors")
+}
+
+// Semantic Search Cache
+model SearchCache {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  
+  // Query data
+  query       String
+  queryHash   String   @unique // MD5 hash of query for fast lookup
+  
+  // Vector representation
+  queryEmbedding Unsupported("vector(1536)")
+  
+  // Results cache
+  results     String   // JSON array of search results
+  resultCount Int
+  
+  // Metadata
+  searchType  SearchType @default(SEMANTIC)
+  model       String     @default("text-embedding-004")
+  
+  @@index([queryHash])
+  @@index([searchType])
+  @@map("search_cache")
+}
+
+// RAG Conversation Context
+model ConversationContext {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Session data
+  sessionId   String   // Unique conversation session
+  userId      String?  // Optional user identification
+  
+  // Context management
+  contextWindow String  // JSON array of relevant context
+  lastQuery     String  // Previous query
+  
+  // Vector representation of conversation state
+  contextEmbedding Unsupported("vector(1536)")
+  
+  @@index([sessionId])
+  @@index([userId])
+  @@map("conversation_contexts")
+}
+
+// Extend existing models with vector relations
+model AudioTranscription {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // ... existing fields ...
+  
+  // Vector relations
+  vectorEmbeddings VectorEmbedding[]
+  
+  // Remove old embedding field - replaced by VectorEmbedding
+  // embedding    String?  // DEPRECATED: Use VectorEmbedding instead
+}
+
+model KnowledgeEntity {
+  id               String   @id @default(cuid())
+  entityTypeId     String
+  transcriptionId  String?
+  
+  // ... existing fields ...
+  
+  // Vector relations
+  knowledgeVector  KnowledgeVector?
+  vectorEmbeddings VectorEmbedding[]
+}
+
+// Enums
+enum EmbeddingSourceType {
+  TRANSCRIPTION
+  KNOWLEDGE_ENTITY
+  CONVERSATION
+  SEARCH_QUERY
+}
+
+enum SearchType {
+  SEMANTIC      // Vector similarity search
+  KEYWORD       // Traditional text search
+  HYBRID        // Combination of semantic and keyword
+  CONVERSATIONAL // RAG-based chat search
+}
+
+// Add pgvector extension (must be enabled in PostgreSQL)
+// Run: CREATE EXTENSION IF NOT EXISTS vector;

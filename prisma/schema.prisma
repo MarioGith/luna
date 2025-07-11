@@ -1,0 +1,285 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AudioTranscription {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // File information
+  fileName    String?
+  filePath    String?
+  fileSize    Int?
+  duration    Float?   // in seconds
+  
+  // Transcription data
+  originalText String
+  markdown     String
+  
+  // Metadata
+  language     String?
+  confidence   Float?
+  
+  // Embeddings for RAG
+  embedding    String?  // JSON array of embeddings
+  
+  // Audio source type
+  sourceType   SourceType @default(FILE)
+  
+  // Tags for organization
+  tags         String[]
+  
+  // Cost tracking (in CAD)
+  inputTokens         Int?     // Actual tokens used for input
+  outputTokens        Int?     // Actual tokens used for output
+  transcriptionCost   Float?   // Cost for transcription in CAD
+  embeddingCost       Float?   // Cost for embedding (will be $0.00 CAD)
+  totalCost           Float?   // Combined cost
+  
+  // API metadata
+  transcriptionModel       String?  // e.g., "gemini-2.0-flash"
+  embeddingModel          String?  // e.g., "text-embedding-004"
+  transcriptionPriceInput  Float?   // Price per input token for transcription (CAD)
+  transcriptionPriceOutput Float?   // Price per output token for transcription (CAD)
+  embeddingPriceInput     Float?   // Price per input token for embedding (CAD)
+  exchangeRate            Float?   // USD to CAD rate at time of request
+  
+  // Speaker detection fields
+  speakerCount         Int?     // Number of speakers detected (1-10)
+  hasSpeakerDiarization Boolean @default(false)
+  speakerTranscription String?  // Formatted with speaker labels
+  speakerMetadata      String?  // JSON with speaker info/segments
+  
+  // Knowledge extraction
+  hasBeenAnalyzed     Boolean @default(false) // Whether content has been analyzed for entities
+  analysisStatus      AnalysisStatus @default(PENDING)
+  analysisError       String?  // Error message if analysis failed
+  
+  // Relations
+  transcriptionSpeakers TranscriptionSpeaker[]
+  extractedEntities     KnowledgeEntity[]
+  extractionReviews     ExtractionReview[]
+  
+  @@index([createdAt])
+  @@index([sourceType])
+  @@index([tags])
+  @@index([hasBeenAnalyzed])
+  @@index([analysisStatus])
+}
+
+enum SourceType {
+  FILE
+  LIVE_RECORDING
+}
+
+model CostSummary {
+  id                    String   @id @default(cuid())
+  totalTranscriptionCost Float    @default(0)
+  totalEmbeddingCost     Float    @default(0)
+  totalSearchCost        Float    @default(0)
+  grandTotal            Float    @default(0)
+  totalRequests         Int      @default(0)
+  lastUpdated           DateTime @updatedAt
+  
+  @@map("cost_summary")
+}
+
+model SearchCost {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  query       String
+  tokens      Int
+  cost        Float    // in CAD
+  model       String
+  exchangeRate Float
+  
+  @@index([createdAt])
+}
+
+model Speaker {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  // Speaker assignments
+  transcriptionSpeakers TranscriptionSpeaker[]
+  
+  @@index([name])
+}
+
+model TranscriptionSpeaker {
+  id                    String @id @default(cuid())
+  transcriptionId       String
+  speakerId             String?  // Optional - can be null if unassigned
+  detectedSpeakerLabel  String   // "Speaker 1", "Speaker 2", etc.
+  segments              String?  // JSON with specific segments this speaker spoke
+  confidence            Float?   // Confidence level of assignment
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  transcription AudioTranscription @relation(fields: [transcriptionId], references: [id], onDelete: Cascade)
+  speaker       Speaker? @relation(fields: [speakerId], references: [id], onDelete: SetNull)
+  
+  @@unique([transcriptionId, detectedSpeakerLabel])
+  @@index([transcriptionId])
+  @@index([speakerId])
+}
+
+// Knowledge Management System Models
+
+model EntityType {
+  id          String   @id @default(cuid())
+  name        String   @unique // e.g., "places", "people", "events", "reminders"
+  displayName String   // e.g., "Places", "People", "Events", "Reminders"
+  description String?  // Description of what this entity type represents
+  color       String?  // Hex color for UI display
+  icon        String?  // Icon name for UI display
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Schema definition for this entity type
+  schema      String?  // JSON schema defining expected attributes
+  
+  // Relations
+  entities    KnowledgeEntity[]
+  extractions ExtractionReview[]
+  
+  @@index([name])
+  @@index([isActive])
+}
+
+model KnowledgeEntity {
+  id               String   @id @default(cuid())
+  entityTypeId     String
+  transcriptionId  String?  // Source transcription (nullable for manually created entities)
+  
+  // Core data
+  title           String   // Main identifier/name for this entity
+  description     String?  // Optional description
+  confidence      Float?   // AI confidence score (0-1)
+  
+  // Metadata
+  isVerified      Boolean  @default(false) // User has verified this information
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  entityType      EntityType @relation(fields: [entityTypeId], references: [id], onDelete: Cascade)
+  transcription   AudioTranscription? @relation(fields: [transcriptionId], references: [id], onDelete: SetNull)
+  
+  // Flexible attributes
+  attributes      EntityAttribute[]
+  
+  // Relationships with other entities
+  sourceRelationships      EntityRelationship[] @relation("SourceEntity")
+  targetRelationships      EntityRelationship[] @relation("TargetEntity")
+  
+  // Extraction tracking
+  extraction      ExtractionReview?
+  
+  @@index([entityTypeId])
+  @@index([transcriptionId])
+  @@index([isVerified])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model EntityAttribute {
+  id        String   @id @default(cuid())
+  entityId  String
+  key       String   // e.g., "address", "phone", "email", "date", "time"
+  value     String   // The actual value
+  dataType  String   // "string", "number", "date", "boolean", "url", "email", "phone"
+  
+  // Metadata
+  confidence Float?  // AI confidence for this specific attribute
+  isVerified Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  // Relations
+  entity    KnowledgeEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  
+  @@unique([entityId, key]) // One value per key per entity
+  @@index([entityId])
+  @@index([key])
+}
+
+model EntityRelationship {
+  id              String   @id @default(cuid())
+  sourceEntityId  String
+  targetEntityId  String
+  relationshipType String  // e.g., "attendee", "location", "organizer", "related_to"
+  description     String?  // Optional description of the relationship
+  confidence      Float?   // AI confidence score
+  
+  // Metadata
+  isVerified      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  sourceEntity    KnowledgeEntity @relation("SourceEntity", fields: [sourceEntityId], references: [id], onDelete: Cascade)
+  targetEntity    KnowledgeEntity @relation("TargetEntity", fields: [targetEntityId], references: [id], onDelete: Cascade)
+  
+  @@unique([sourceEntityId, targetEntityId, relationshipType])
+  @@index([sourceEntityId])
+  @@index([targetEntityId])
+  @@index([relationshipType])
+}
+
+model ExtractionReview {
+  id               String   @id @default(cuid())
+  transcriptionId  String
+  entityId         String?  @unique // Null if rejected, populated if approved
+  entityTypeId     String
+  
+  // Extraction details
+  extractedData    String   // JSON of what was extracted
+  sourceText       String   // Original text that triggered extraction
+  confidence       Float    // AI confidence score
+  
+  // Review status
+  status          ExtractionStatus @default(PENDING)
+  reviewedAt      DateTime?
+  reviewNotes     String?
+  
+  // Metadata
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  transcription   AudioTranscription @relation(fields: [transcriptionId], references: [id], onDelete: Cascade)
+  entity          KnowledgeEntity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  entityType      EntityType @relation(fields: [entityTypeId], references: [id], onDelete: Cascade)
+  
+  @@index([transcriptionId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ExtractionStatus {
+  PENDING    // Waiting for user review
+  APPROVED   // User approved the extraction
+  REJECTED   // User rejected the extraction
+  MODIFIED   // User modified the extraction
+}
+
+enum AnalysisStatus {
+  PENDING     // Not yet analyzed
+  PROCESSING  // Currently being analyzed
+  COMPLETED   // Analysis completed
+  FAILED      // Analysis failed
+}
