@@ -1,16 +1,30 @@
 "use client";
 
-import { Menu, Bell, User, Search } from "lucide-react";
+import { Menu, Bell, User, Search, LogOut, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { useSession, signOut } from "next-auth/react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
+  const { data: session } = useSession();
+
+  const handleSignOut = () => {
+    signOut({ callbackUrl: "/login" });
+  };
+
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
@@ -62,9 +76,42 @@ export function Header({ onMenuClick }: HeaderProps) {
           </div>
           
           {/* User menu */}
-          <Button variant="ghost" size="sm">
-            <User className="h-5 w-5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="relative">
+                {session?.user?.image ? (
+                  <img
+                    src={session.user.image}
+                    alt={session.user.name || "User"}
+                    className="h-6 w-6 rounded-full"
+                  />
+                ) : (
+                  <User className="h-5 w-5" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5">
+                <p className="text-sm font-medium text-gray-900">
+                  {session?.user?.name || "User"}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {session?.user?.email}
+                </p>
+                {session?.user?.githubUsername && (
+                  <div className="flex items-center mt-1 text-xs text-gray-500">
+                    <Github className="h-3 w-3 mr-1" />
+                    @{session.user.githubUsername}
+                  </div>
+                )}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sign out</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
