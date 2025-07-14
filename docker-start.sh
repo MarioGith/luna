@@ -36,19 +36,28 @@ reset_database() {
 deploy_migrations() {
     echo "🗃️  Deploying database migrations..."
     
-    # Check if migrations are needed
-    if ! npx prisma migrate status > /dev/null 2>&1; then
-        echo "📋 Migration status check failed, applying migrations..."
-        npx prisma migrate deploy
-    else
-        echo "📋 Checking migration status..."
-        npx prisma migrate status
-        
-        # Apply any pending migrations
-        npx prisma migrate deploy
-    fi
+    # First, try to apply all migrations
+    echo "📋 Applying migrations..."
+    npx prisma migrate deploy
     
     echo "✅ Database migrations completed"
+}
+
+# Function to force apply authentication tables
+force_apply_auth_tables() {
+    echo "🔧 Force applying authentication tables..."
+    
+    # Apply the authentication tables migration directly
+    local auth_migration_path="prisma/migrations/20250714000000_ensure_auth_tables/migration.sql"
+    
+    if [ -f "$auth_migration_path" ]; then
+        echo "📋 Applying authentication tables migration..."
+        npx prisma db execute --file "$auth_migration_path"
+        echo "✅ Authentication tables migration applied"
+    else
+        echo "❌ Authentication tables migration file not found"
+        return 1
+    fi
 }
 
 # Function to verify critical tables exist
@@ -163,15 +172,21 @@ main() {
     if ! verify_tables; then
         echo "🚨 Critical tables missing - attempting to fix..."
         
-        # Try to reset and redeploy if tables are missing
-        echo "🔄 Attempting database reset and migration re-deployment..."
-        reset_database
-        deploy_migrations
+        # First, try to force apply authentication tables
+        echo "🔧 Attempting to force apply authentication tables..."
+        force_apply_auth_tables
         
-        # Verify again
+        # Verify tables after force apply
         if ! verify_tables; then
-            echo "❌ Unable to create required tables - deployment failed"
-            exit 1
+            echo "🔄 Force apply failed, attempting database reset and migration re-deployment..."
+            reset_database
+            deploy_migrations
+            
+            # Verify again after reset
+            if ! verify_tables; then
+                echo "❌ Unable to create required tables - deployment failed"
+                exit 1
+            fi
         fi
     fi
     
