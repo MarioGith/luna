@@ -52,9 +52,8 @@ RUN chown nextjs:nodejs .next
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy Prisma files and startup script
+# Copy Prisma files
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/docker-start.sh ./docker-start.sh
 
 # Install pnpm and generate Prisma client in runtime
 RUN npm install -g pnpm
@@ -62,7 +61,6 @@ RUN npm install -g pnpm
 # Create uploads directory
 RUN mkdir -p /app/uploads
 RUN chown nextjs:nodejs /app/uploads
-RUN chmod +x ./docker-start.sh
 
 
 USER nextjs

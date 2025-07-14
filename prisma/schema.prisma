@@ -194,6 +194,9 @@ model KnowledgeEntity {
   // Extraction tracking
   extraction      ExtractionReview?
   
+  // Vector embeddings
+  knowledgeVectors KnowledgeVector[]
+  
   @@index([entityTypeId])
   @@index([transcriptionId])
   @@index([isVerified])
@@ -329,9 +332,10 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
-  accounts      Account[]
-  sessions      Session[]
-  transcriptions AudioTranscription[]
+  accounts            Account[]
+  sessions            Session[]
+  transcriptions      AudioTranscription[]
+  conversationContexts ConversationContext[]
 }
 
 model VerificationToken {
@@ -340,4 +344,157 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Vector Embeddings System
+model VectorEmbedding {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sourceId  String
+  sourceType String
+  embedding Unsupported("vector(1536)")
+  text      String
+  tokens    Int?
+  model     String @default("text-embedding-004")
+  
+  @@index([sourceType])
+  @@index([createdAt])
+  @@map("vector_embeddings")
+}
+
+model KnowledgeVector {
+  id                   String   @id @default(cuid())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  entityId             String
+  title                String
+  description          String?
+  titleEmbedding       Unsupported("vector(1536)")
+  descriptionEmbedding Unsupported("vector(1536)")?
+  entityType           String
+  confidence           Float?
+  isVerified           Boolean @default(false)
+  
+  // Relations
+  entity               KnowledgeEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  
+  @@index([entityType])
+  @@index([isVerified])
+  @@map("knowledge_vectors")
+}
+
+model SearchCache {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  query          String
+  queryHash      String   @unique
+  queryEmbedding Unsupported("vector(1536)")
+  results        String
+  resultCount    Int
+  searchType     String   @default("SEMANTIC")
+  model          String   @default("text-embedding-004")
+  
+  @@index([queryHash])
+  @@index([searchType])
+  @@map("search_cache")
+}
+
+model ConversationContext {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  sessionId        String
+  userId           String?
+  contextWindow    String
+  lastQuery        String
+  contextEmbedding Unsupported("vector(1536)")
+  
+  // Relations
+  user             User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([sessionId])
+  @@index([userId])
+  @@map("conversation_contexts")
+}
+
+// Dynamic Schema Management System
+model SchemaProposal {
+  id              String    @id @default(cuid())
+  type            String
+  priority        String
+  status          String    @default("pending")
+  title           String
+  description     String
+  rationale       String
+  impact          String
+  sqlPreview      String
+  supportingData  String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  implementedAt   DateTime?
+  reviewedBy      String?
+  reviewNotes     String?
+  
+  // Relations
+  evolutionHistory SchemaEvolutionHistory[]
+  dynamicTables    DynamicTable[]
+  
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
+  @@map("schema_proposals")
+}
+
+model SchemaEvolutionHistory {
+  id           String   @id @default(cuid())
+  proposalId   String
+  actionType   String
+  sqlExecuted  String
+  success      Boolean
+  errorMessage String?
+  executedAt   DateTime @default(now())
+  executedBy   String?
+  rollbackSql  String?
+  
+  // Relations
+  proposal     SchemaProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  
+  @@index([proposalId])
+  @@index([executedAt])
+  @@map("schema_evolution_history")
+}
+
+model KnowledgePattern {
+  id                 String   @id @default(cuid())
+  name               String
+  description        String
+  confidence         Float
+  frequency          Int
+  examples           String
+  suggestedStructure String
+  status             String   @default("detected")
+  createdAt          DateTime @default(now())
+  lastAnalyzed       DateTime @default(now())
+  
+  @@index([confidence])
+  @@index([frequency])
+  @@index([status])
+  @@map("knowledge_patterns")
+}
+
+model DynamicTable {
+  id                   String   @id @default(cuid())
+  tableName            String   @unique
+  createdFromProposal  String
+  schema               String
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  lastModified         DateTime @default(now())
+  
+  // Relations
+  proposal             SchemaProposal @relation(fields: [createdFromProposal], references: [id], onDelete: Cascade)
+  
+  @@index([isActive])
+  @@map("dynamic_tables")
 }
